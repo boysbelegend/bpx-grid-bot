@@ -1,0 +1,39 @@
+{
+  "enabled": false,
+  "host": "smtp.gmail.com",
+  "port": 587,
+  "secure": false,
+  "auth": {
+    "user": "your-email@gmail.com",
+    "pass": "your-app-password"
+  },
+  "from": "BPX Grid Bot <your-email@gmail.com>",
+  "to": [
+    "recipient@example.com"
+  ],
+  "notifications": {
+    "trades": {
+      "enabled": true,
+      "rateLimit": 300000
+    },
+    "riskAlerts": {
+      "enabled": true,
+      "warningLevel": true,
+      "criticalLevel": true
+    },
+    "engineStatus": {
+      "enabled": true,
+      "onStart": true,
+      "onStop": true,
+      "onPause": false,
+      "onResume": false
+    },
+    "performanceReports": {
+      "enabled": true,
+      "daily": true,
+      "weekly": true,
+      "monthly": true,
+      "schedule": "0 9 * * *"
+    }
+  }
+}
