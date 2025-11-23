@@ -8,9 +8,11 @@ import { GridCard } from './components/GridCard';
 import { MetricsCard } from './components/MetricsCard';
 import { ScenarioManager } from './components/ScenarioManager';
 import { PriceChart } from './components/PriceChart';
+import { TradeHistoryTable } from './components/TradeHistoryTable';
+import { AnalyticsDashboard } from './components/AnalyticsDashboard';
 import './App.css';
 
-type TabType = 'dashboard' | 'scenarios';
+type TabType = 'dashboard' | 'scenarios' | 'analytics';
 
 function App() {
   const { state, isLoading, error, wsConnected } = useDashboard();
@@ -167,6 +169,22 @@ function App() {
           }}
         >
           🎯 Scenarios
+        </button>
+        <button
+          onClick={() => setActiveTab('analytics')}
+          className={activeTab === 'analytics' ? 'tab-active' : 'tab-inactive'}
+          style={{
+            padding: '0.75rem 1.5rem',
+            border: 'none',
+            background: activeTab === 'analytics' ? 'var(--bg-secondary)' : 'transparent',
+            color: activeTab === 'analytics' ? 'var(--text-primary)' : 'var(--text-secondary)',
+            cursor: 'pointer',
+            borderRadius: '8px 8px 0 0',
+            fontWeight: activeTab === 'analytics' ? 600 : 400,
+            transition: 'all 0.2s',
+          }}
+        >
+          📈 Analytics
         </button>
       </nav>
 
@@ -366,6 +384,20 @@ function App() {
       {activeTab === 'scenarios' && (
         <div style={{ padding: '2rem' }}>
           <ScenarioManager onScenarioReady={handleScenarioReady} />
+        </div>
+      )}
+
+      {activeTab === 'analytics' && (
+        <div style={{ padding: '2rem' }}>
+          <div style={{ marginBottom: '2rem' }}>
+            <h2 style={{ marginBottom: '1rem' }}>거래 히스토리</h2>
+            <TradeHistoryTable sessionId={state?.engine?.sessionId || 'current'} />
+          </div>
+
+          <div>
+            <h2 style={{ marginBottom: '1rem' }}>성능 분석</h2>
+            <AnalyticsDashboard sessionId={state?.engine?.sessionId || 'current'} />
+          </div>
         </div>
       )}
       </main>

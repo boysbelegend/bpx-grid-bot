@@ -355,6 +355,119 @@ export function createRouter(engineManager: EngineManager): Router {
   });
 
   /**
+   * Get trade history
+   */
+  router.get('/history/trades', async (req: Request, res: Response) => {
+    try {
+      const { sessionId, limit = 100, offset = 0, side, startDate, endDate } = req.query;
+
+      // Placeholder - will be implemented with database
+      // For now, return empty array
+      res.json(success({
+        trades: [],
+        total: 0,
+        limit: parseInt(limit as string),
+        offset: parseInt(offset as string)
+      }));
+    } catch (err: any) {
+      logger.error({ err }, 'Failed to fetch trade history');
+      res.status(500).json(error(err.message));
+    }
+  });
+
+  /**
+   * Get performance report
+   */
+  router.get('/analytics/performance', async (req: Request, res: Response) => {
+    try {
+      const { sessionId } = req.query;
+
+      if (!sessionId) {
+        return res.status(400).json(error('Session ID is required'));
+      }
+
+      // Placeholder - will be implemented with database
+      res.json(success({
+        overview: {},
+        daily: [],
+        monthly: [],
+        bestTrades: [],
+        worstTrades: []
+      }));
+    } catch (err: any) {
+      logger.error({ err }, 'Failed to generate performance report');
+      res.status(500).json(error(err.message));
+    }
+  });
+
+  /**
+   * Get trade distribution analytics
+   */
+  router.get('/analytics/distribution', async (req: Request, res: Response) => {
+    try {
+      const { sessionId } = req.query;
+
+      if (!sessionId) {
+        return res.status(400).json(error('Session ID is required'));
+      }
+
+      // Placeholder - will be implemented with database
+      res.json(success({
+        byHour: [],
+        byDayOfWeek: [],
+        bySide: [],
+        byPnlRange: []
+      }));
+    } catch (err: any) {
+      logger.error({ err }, 'Failed to fetch trade distribution');
+      res.status(500).json(error(err.message));
+    }
+  });
+
+  /**
+   * Export trade history to CSV
+   */
+  router.get('/analytics/export/csv', async (req: Request, res: Response) => {
+    try {
+      const { sessionId } = req.query;
+
+      if (!sessionId) {
+        return res.status(400).json(error('Session ID is required'));
+      }
+
+      // Placeholder - will be implemented with database
+      const csv = 'Timestamp,Symbol,Side,Type,Price,Quantity,Value,Fee,PnL\n';
+
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', `attachment; filename=trades-${sessionId}.csv`);
+      res.send(csv);
+    } catch (err: any) {
+      logger.error({ err }, 'Failed to export CSV');
+      res.status(500).json(error(err.message));
+    }
+  });
+
+  /**
+   * Get trading sessions
+   */
+  router.get('/history/sessions', async (req: Request, res: Response) => {
+    try {
+      const { limit = 10, offset = 0 } = req.query;
+
+      // Placeholder - will be implemented with database
+      res.json(success({
+        sessions: [],
+        total: 0,
+        limit: parseInt(limit as string),
+        offset: parseInt(offset as string)
+      }));
+    } catch (err: any) {
+      logger.error({ err }, 'Failed to fetch sessions');
+      res.status(500).json(error(err.message));
+    }
+  });
+
+  /**
    * Run backtest for scenario
    */
   router.post('/backtest/run', async (req: Request, res: Response) => {
