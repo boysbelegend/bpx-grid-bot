@@ -16,9 +16,20 @@ import {
   GetRecommendationsRequest,
 } from './types';
 import { scenarioManager } from '../../../src/config/ScenarioTemplates';
+import Database from '../../../src/database/Database';
+import { TradeRepository } from '../../../src/database/repositories/TradeRepository';
+import { SessionRepository } from '../../../src/database/repositories/SessionRepository';
+import { PerformanceMetricsRepository } from '../../../src/database/repositories/PerformanceMetricsRepository';
+import { AnalyticsService } from '../../../src/analytics/AnalyticsService';
 
 export function createRouter(engineManager: EngineManager): Router {
   const router = Router();
+
+  // Initialize database repositories
+  const tradeRepo = new TradeRepository(Database);
+  const sessionRepo = new SessionRepository(Database);
+  const metricsRepo = new PerformanceMetricsRepository(Database);
+  const analyticsService = new AnalyticsService(Database);
 
   /**
    * Health check
@@ -361,11 +372,37 @@ export function createRouter(engineManager: EngineManager): Router {
     try {
       const { sessionId, limit = 100, offset = 0, side, startDate, endDate } = req.query;
 
-      // Placeholder - will be implemented with database
-      // For now, return empty array
+      // Get session ID (use active session if not specified)
+      let sid = sessionId as string;
+      if (!sid || sid === 'current') {
+        const activeSession = await sessionRepo.getActive();
+        if (!activeSession) {
+          return res.json(success({
+            trades: [],
+            total: 0,
+            limit: parseInt(limit as string),
+            offset: parseInt(offset as string)
+          }));
+        }
+        sid = activeSession.session_id;
+      }
+
+      // Build filter
+      const filter: any = { session_id: sid };
+      if (side) filter.side = side;
+      if (startDate) filter.start_date = startDate as string;
+      if (endDate) filter.end_date = endDate as string;
+
+      // Fetch trades
+      const trades = await tradeRepo.findWithFilters(
+        filter,
+        parseInt(limit as string),
+        parseInt(offset as string)
+      );
+
       res.json(success({
-        trades: [],
-        total: 0,
+        trades,
+        total: trades.length,
         limit: parseInt(limit as string),
         offset: parseInt(offset as string)
       }));
@@ -380,20 +417,28 @@ export function createRouter(engineManager: EngineManager): Router {
    */
   router.get('/analytics/performance', async (req: Request, res: Response) => {
     try {
-      const { sessionId } = req.query;
+      let { sessionId } = req.query;
 
-      if (!sessionId) {
-        return res.status(400).json(error('Session ID is required'));
+      // Get session ID (use active session if not specified)
+      let sid = sessionId as string;
+      if (!sid || sid === 'current') {
+        const activeSession = await sessionRepo.getActive();
+        if (!activeSession) {
+          return res.json(success({
+            overview: {},
+            daily: [],
+            monthly: [],
+            bestTrades: [],
+            worstTrades: []
+          }));
+        }
+        sid = activeSession.session_id;
       }
 
-      // Placeholder - will be implemented with database
-      res.json(success({
-        overview: {},
-        daily: [],
-        monthly: [],
-        bestTrades: [],
-        worstTrades: []
-      }));
+      // Generate performance report
+      const report = await analyticsService.generatePerformanceReport(sid);
+
+      res.json(success(report));
     } catch (err: any) {
       logger.error({ err }, 'Failed to generate performance report');
       res.status(500).json(error(err.message));
@@ -405,19 +450,27 @@ export function createRouter(engineManager: EngineManager): Router {
    */
   router.get('/analytics/distribution', async (req: Request, res: Response) => {
     try {
-      const { sessionId } = req.query;
+      let { sessionId } = req.query;
 
-      if (!sessionId) {
-        return res.status(400).json(error('Session ID is required'));
+      // Get session ID (use active session if not specified)
+      let sid = sessionId as string;
+      if (!sid || sid === 'current') {
+        const activeSession = await sessionRepo.getActive();
+        if (!activeSession) {
+          return res.json(success({
+            byHour: [],
+            byDayOfWeek: [],
+            bySide: [],
+            byPnlRange: []
+          }));
+        }
+        sid = activeSession.session_id;
       }
 
-      // Placeholder - will be implemented with database
-      res.json(success({
-        byHour: [],
-        byDayOfWeek: [],
-        bySide: [],
-        byPnlRange: []
-      }));
+      // Get trade distribution
+      const distribution = await analyticsService.getTradeDistribution(sid);
+
+      res.json(success(distribution));
     } catch (err: any) {
       logger.error({ err }, 'Failed to fetch trade distribution');
       res.status(500).json(error(err.message));
@@ -429,17 +482,26 @@ export function createRouter(engineManager: EngineManager): Router {
    */
   router.get('/analytics/export/csv', async (req: Request, res: Response) => {
     try {
-      const { sessionId } = req.query;
+      let { sessionId } = req.query;
 
-      if (!sessionId) {
-        return res.status(400).json(error('Session ID is required'));
+      // Get session ID (use active session if not specified)
+      let sid = sessionId as string;
+      if (!sid || sid === 'current') {
+        const activeSession = await sessionRepo.getActive();
+        if (!activeSession) {
+          const csv = 'Timestamp,Symbol,Side,Type,Price,Quantity,Value,Fee,PnL\n';
+          res.setHeader('Content-Type', 'text/csv');
+          res.setHeader('Content-Disposition', `attachment; filename=trades-current.csv`);
+          return res.send(csv);
+        }
+        sid = activeSession.session_id;
       }
 
-      // Placeholder - will be implemented with database
-      const csv = 'Timestamp,Symbol,Side,Type,Price,Quantity,Value,Fee,PnL\n';
+      // Export to CSV
+      const csv = await analyticsService.exportToCSV(sid);
 
       res.setHeader('Content-Type', 'text/csv');
-      res.setHeader('Content-Disposition', `attachment; filename=trades-${sessionId}.csv`);
+      res.setHeader('Content-Disposition', `attachment; filename=trades-${sid}.csv`);
       res.send(csv);
     } catch (err: any) {
       logger.error({ err }, 'Failed to export CSV');
@@ -454,10 +516,15 @@ export function createRouter(engineManager: EngineManager): Router {
     try {
       const { limit = 10, offset = 0 } = req.query;
 
-      // Placeholder - will be implemented with database
+      // Fetch sessions
+      const sessions = await sessionRepo.findAll(
+        parseInt(limit as string),
+        parseInt(offset as string)
+      );
+
       res.json(success({
-        sessions: [],
-        total: 0,
+        sessions,
+        total: sessions.length,
         limit: parseInt(limit as string),
         offset: parseInt(offset as string)
       }));
