@@ -12,6 +12,21 @@ I recommend getting Blue Chip NFT Madlads before you trade to get VIP1 tier fees
 
 ## 🎯 Features
 
+### 🆕 Scenario Template System
+- **8 Pre-defined Scenarios**: 3 spot + 5 futures strategies optimized by risk level
+- **One-Click Deployment**: Start trading in minutes without JSON editing
+- **Smart Recommendations**: AI-powered scenario matching based on experience & risk tolerance
+- **Easy Customization**: Visual editor for tweaking parameters
+- **Risk Categorization**: Conservative, Moderate, Aggressive templates
+- **Futures Support**: 1x to 10x leverage with liquidation protection
+
+### 🆕 Futures Trading Support
+- **Leverage Trading**: 1x to 20x leverage with automatic risk management
+- **Liquidation Prevention**: Real-time monitoring with auto-reduction at critical levels
+- **Funding Rate Optimization**: Automatic order adjustment based on funding costs
+- **Multi-Mode Support**: Cross and Isolated margin modes
+- **Complete Risk Management**: Margin ratio monitoring, ADL tracking, emergency stops
+
 ### Core Trading System (TypeScript)
 - **AMM-Style Grid Trading**: Automated liquidity provision similar to Solana Meteora
 - **Multi-Symbol Support**: SOL, BTC, ETH, and more
@@ -97,7 +112,40 @@ BACKPACK_API_SECRET=your_api_secret_here
 BACKPACK_API_WINDOW=5000
 ```
 
-### 4. Configure Strategy
+### 4A. 🆕 Quick Start with Scenarios (Recommended!)
+
+**Easiest way to start trading - no JSON editing needed!**
+
+```bash
+# Start the dashboard backend
+cd dashboard/backend
+npm install
+npm run dev
+```
+
+Then use the API to get a scenario:
+
+```bash
+# Get recommended scenario for beginners
+curl -X POST http://localhost:3001/api/scenarios/recommendations \
+  -H "Content-Type: application/json" \
+  -d '{"experience":"beginner","riskTolerance":"low","marketType":"spot"}'
+
+# Export scenario to config
+curl -X POST http://localhost:3001/api/scenarios/export \
+  -H "Content-Type: application/json" \
+  -d '{
+    "scenarioId": "spot-conservative",
+    "symbol": "SOL_USDC",
+    "baseAsset": "SOL",
+    "quoteAsset": "USDC",
+    "dryRun": true
+  }' > config/strategies/my-strategy.json
+```
+
+**See [docs/SCENARIO_GUIDE.md](docs/SCENARIO_GUIDE.md) for detailed scenario guide!**
+
+### 4B. Manual Configuration (Advanced)
 
 Edit `config/strategies/sol-amm-grid.json`:
 ```json
