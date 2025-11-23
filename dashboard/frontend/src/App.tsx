@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useDashboard, useEngineControl, useStrategies } from './hooks/useDashboard';
 import { StatusCard } from './components/StatusCard';
 import { PnLCard } from './components/PnLCard';
@@ -7,6 +7,7 @@ import { RiskCard } from './components/RiskCard';
 import { GridCard } from './components/GridCard';
 import { MetricsCard } from './components/MetricsCard';
 import { ScenarioManager } from './components/ScenarioManager';
+import { PriceChart } from './components/PriceChart';
 import './App.css';
 
 type TabType = 'dashboard' | 'scenarios';
@@ -70,6 +71,41 @@ function App() {
     // Could automatically start the engine or save the config
     setActiveTab('dashboard');
   };
+
+  // Prepare chart data
+  const chartData = useMemo(() => {
+    if (!state?.market || !state?.grid) return null;
+
+    // Generate sample candles (in production, fetch from API)
+    const now = Date.now();
+    const candles = Array.from({ length: 50 }, (_, i) => {
+      const time = Math.floor((now - (49 - i) * 60000) / 1000); // 1min candles
+      const basePrice = state.market.lastPrice;
+      const variation = (Math.random() - 0.5) * basePrice * 0.02;
+
+      return {
+        time,
+        open: basePrice + variation,
+        high: basePrice + variation + Math.random() * basePrice * 0.01,
+        low: basePrice + variation - Math.random() * basePrice * 0.01,
+        close: basePrice + variation * 0.9,
+      };
+    });
+
+    // Map grid levels
+    const gridLevels = state.grid.levels.map((level: any) => ({
+      price: level.price,
+      side: level.side === 'buy' ? 'buy' as const : 'sell' as const,
+      hasOrder: level.hasOrder || false,
+    }));
+
+    return {
+      symbol: state.market.symbol,
+      candles,
+      gridLevels,
+      currentPrice: state.market.lastPrice,
+    };
+  }, [state?.market, state?.grid]);
 
   return (
     <div className="app">
@@ -222,6 +258,19 @@ function App() {
           {state?.grid && <GridCard grid={state.grid} />}
           {state?.metrics && <MetricsCard metrics={state.metrics} />}
         </div>
+
+        {/* Price Chart with Grid Levels */}
+        {chartData && (
+          <div style={{ marginTop: '1.5rem' }}>
+            <PriceChart
+              symbol={chartData.symbol}
+              candles={chartData.candles}
+              gridLevels={chartData.gridLevels}
+              currentPrice={chartData.currentPrice}
+              height={400}
+            />
+          </div>
+        )}
 
         {state?.market && (
           <div className="card" style={{ marginTop: '1.5rem' }}>
