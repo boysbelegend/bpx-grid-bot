@@ -6,13 +6,17 @@ import { PositionCard } from './components/PositionCard';
 import { RiskCard } from './components/RiskCard';
 import { GridCard } from './components/GridCard';
 import { MetricsCard } from './components/MetricsCard';
+import { ScenarioManager } from './components/ScenarioManager';
 import './App.css';
+
+type TabType = 'dashboard' | 'scenarios';
 
 function App() {
   const { state, isLoading, error, wsConnected } = useDashboard();
   const control = useEngineControl();
   const { data: strategies } = useStrategies();
 
+  const [activeTab, setActiveTab] = useState<TabType>('dashboard');
   const [selectedStrategy, setSelectedStrategy] = useState('config/strategies/sol-amm-grid.json');
   const [dryRun, setDryRun] = useState(true);
 
@@ -60,6 +64,13 @@ function App() {
   const isPaused = state?.engine?.status === 'paused';
   const isStopped = state?.engine?.status === 'stopped' || !state?.engine;
 
+  const handleScenarioReady = (config: any) => {
+    // When scenario config is ready, use it
+    console.log('Scenario config ready:', config);
+    // Could automatically start the engine or save the config
+    setActiveTab('dashboard');
+  };
+
   return (
     <div className="app">
       <header className="header">
@@ -82,7 +93,49 @@ function App() {
         </div>
       </header>
 
-      <main className="main">
+      {/* Tab Navigation */}
+      <nav className="tabs" style={{
+        display: 'flex',
+        gap: '0.5rem',
+        padding: '1rem 2rem 0',
+        borderBottom: '1px solid var(--border-color)',
+      }}>
+        <button
+          onClick={() => setActiveTab('dashboard')}
+          className={activeTab === 'dashboard' ? 'tab-active' : 'tab-inactive'}
+          style={{
+            padding: '0.75rem 1.5rem',
+            border: 'none',
+            background: activeTab === 'dashboard' ? 'var(--bg-secondary)' : 'transparent',
+            color: activeTab === 'dashboard' ? 'var(--text-primary)' : 'var(--text-secondary)',
+            cursor: 'pointer',
+            borderRadius: '8px 8px 0 0',
+            fontWeight: activeTab === 'dashboard' ? 600 : 400,
+            transition: 'all 0.2s',
+          }}
+        >
+          📊 Dashboard
+        </button>
+        <button
+          onClick={() => setActiveTab('scenarios')}
+          className={activeTab === 'scenarios' ? 'tab-active' : 'tab-inactive'}
+          style={{
+            padding: '0.75rem 1.5rem',
+            border: 'none',
+            background: activeTab === 'scenarios' ? 'var(--bg-secondary)' : 'transparent',
+            color: activeTab === 'scenarios' ? 'var(--text-primary)' : 'var(--text-secondary)',
+            cursor: 'pointer',
+            borderRadius: '8px 8px 0 0',
+            fontWeight: activeTab === 'scenarios' ? 600 : 400,
+            transition: 'all 0.2s',
+          }}
+        >
+          🎯 Scenarios
+        </button>
+      </nav>
+
+      <main className="main">{activeTab === 'dashboard' && (
+        <>
         <div className="controls">
           {isStopped && (
             <>
@@ -258,6 +311,14 @@ function App() {
             </div>
           </div>
         )}
+        </>
+      )}
+
+      {activeTab === 'scenarios' && (
+        <div style={{ padding: '2rem' }}>
+          <ScenarioManager onScenarioReady={handleScenarioReady} />
+        </div>
+      )}
       </main>
     </div>
   );

@@ -1,0 +1,22 @@
+{
+  "enabled": true,
+  "channels": {
+    "telegram": {
+      "enabled": true,
+      "botToken": "YOUR_TELEGRAM_BOT_TOKEN",
+      "chatId": "YOUR_CHAT_ID"
+    },
+    "discord": {
+      "enabled": false,
+      "webhookUrl": "https://discord.com/api/webhooks/YOUR_WEBHOOK_URL"
+    }
+  },
+  "events": {
+    "trade": true,
+    "risk": true,
+    "error": true,
+    "dailyReport": true,
+    "positionChange": false,
+    "liquidationWarning": true
+  }
+}

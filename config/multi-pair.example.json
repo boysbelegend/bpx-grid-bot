@@ -1,0 +1,25 @@
+{
+  "pairs": {
+    "SOL_USDC": {
+      "strategyPath": "config/strategies/sol-amm-grid.json",
+      "enabled": true,
+      "weight": 0.4
+    },
+    "BTC_USDC": {
+      "strategyPath": "config/strategies/btc-amm-grid.json",
+      "enabled": true,
+      "weight": 0.4
+    },
+    "ETH_USDC": {
+      "strategyPath": "config/strategies/eth-amm-grid.json",
+      "enabled": true,
+      "weight": 0.2
+    }
+  },
+  "global": {
+    "maxTotalPositionValue": 10000,
+    "maxDailyLoss": 200,
+    "rebalanceInterval": 60,
+    "correlationCheck": true
+  }
+}
