@@ -1,25 +1,64 @@
 {
-  "pairs": {
-    "SOL_USDC": {
-      "strategyPath": "config/strategies/sol-amm-grid.json",
-      "enabled": true,
-      "weight": 0.4
+  "multiPair": {
+    "pairs": {
+      "SOL_USDC": {
+        "strategyPath": "./config/strategies/sol-grid.json",
+        "enabled": true,
+        "weight": 0.35
+      },
+      "BTC_USDC": {
+        "strategyPath": "./config/strategies/btc-grid.json",
+        "enabled": true,
+        "weight": 0.35
+      },
+      "ETH_USDC": {
+        "strategyPath": "./config/strategies/eth-grid.json",
+        "enabled": true,
+        "weight": 0.30
+      }
     },
-    "BTC_USDC": {
-      "strategyPath": "config/strategies/btc-amm-grid.json",
-      "enabled": true,
-      "weight": 0.4
-    },
-    "ETH_USDC": {
-      "strategyPath": "config/strategies/eth-amm-grid.json",
-      "enabled": true,
-      "weight": 0.2
+    "global": {
+      "maxTotalPositionValue": 100000,
+      "maxDailyLoss": 5000,
+      "rebalanceInterval": 60,
+      "correlationCheck": true
     }
   },
-  "global": {
-    "maxTotalPositionValue": 10000,
-    "maxDailyLoss": 200,
-    "rebalanceInterval": 60,
-    "correlationCheck": true
+  "portfolioOptimization": {
+    "method": "risk-parity",
+    "constraints": {
+      "minWeight": 0.10,
+      "maxWeight": 0.50,
+      "maxCorrelation": 0.85
+    },
+    "riskFreeRate": 0.02
+  },
+  "correlation": {
+    "maxHistoryLength": 100,
+    "updateIntervalMs": 300000,
+    "highCorrelationThreshold": 0.80,
+    "alertThreshold": 0.85
+  },
+  "arbitrage": {
+    "enabled": true,
+    "minProfitPercent": 0.5,
+    "maxExecutionTime": 1000,
+    "tradingFee": 0.001,
+    "slippageTolerance": 0.002,
+    "minVolume": 100,
+    "scanIntervalMs": 5000
+  },
+  "smartRebalancing": {
+    "enabled": true,
+    "smaShortPeriod": 20,
+    "smaLongPeriod": 50,
+    "emaShortPeriod": 12,
+    "emaLongPeriod": 26,
+    "rsiPeriod": 14,
+    "rsiOverbought": 70,
+    "rsiOversold": 30,
+    "volatilityPeriod": 20,
+    "momentumPeriod": 10,
+    "minConfidence": 65
   }
 }
