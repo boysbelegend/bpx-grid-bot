@@ -6,6 +6,7 @@
 import React, {useEffect} from 'react';
 import {NavigationContainer} from '@react-navigation/native';
 import {createBottomTabNavigator} from '@react-navigation/bottom-tabs';
+import {createStackNavigator} from '@react-navigation/stack';
 import {GestureHandlerRootView} from 'react-native-gesture-handler';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import {StyleSheet} from 'react-native';
@@ -13,9 +14,39 @@ import {StyleSheet} from 'react-native';
 import DashboardScreen from './src/screens/DashboardScreen';
 import PortfolioScreen from './src/screens/PortfolioScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
+import TradeHistoryScreen from './src/screens/TradeHistoryScreen';
+import ChartScreen from './src/screens/ChartScreen';
 import {NotificationService} from './src/services/NotificationService';
 
 const Tab = createBottomTabNavigator();
+const Stack = createStackNavigator();
+
+// Analytics Stack Navigator
+const AnalyticsStack = () => {
+  return (
+    <Stack.Navigator
+      screenOptions={{
+        headerStyle: {
+          backgroundColor: '#1E1E1E',
+        },
+        headerTintColor: '#fff',
+        headerTitleStyle: {
+          fontWeight: 'bold',
+        },
+      }}>
+      <Stack.Screen
+        name="TradeHistory"
+        component={TradeHistoryScreen}
+        options={{title: '거래 히스토리'}}
+      />
+      <Stack.Screen
+        name="Chart"
+        component={ChartScreen}
+        options={{title: '차트'}}
+      />
+    </Stack.Navigator>
+  );
+};
 
 const App = () => {
   useEffect(() => {
@@ -41,6 +72,9 @@ const App = () => {
                   break;
                 case 'Portfolio':
                   iconName = focused ? 'wallet' : 'wallet-outline';
+                  break;
+                case 'Analytics':
+                  iconName = focused ? 'chart-line' : 'chart-line-variant';
                   break;
                 case 'Settings':
                   iconName = focused ? 'cog' : 'cog-outline';
@@ -74,6 +108,11 @@ const App = () => {
             name="Portfolio"
             component={PortfolioScreen}
             options={{title: '포트폴리오'}}
+          />
+          <Tab.Screen
+            name="Analytics"
+            component={AnalyticsStack}
+            options={{headerShown: false, title: '분석'}}
           />
           <Tab.Screen
             name="Settings"

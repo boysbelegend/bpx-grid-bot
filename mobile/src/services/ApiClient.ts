@@ -78,6 +78,62 @@ export interface PortfolioSummary {
   }>;
 }
 
+export interface Trade {
+  id: number;
+  timestamp: string;
+  symbol: string;
+  side: 'buy' | 'sell';
+  type: 'market' | 'limit';
+  price: number;
+  quantity: number;
+  value: number;
+  fee: number;
+  realized_pnl: number;
+  order_id?: string;
+  grid_level?: number;
+}
+
+export interface TradeHistoryResponse {
+  trades: Trade[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface PerformanceReport {
+  overview: {
+    totalPnl: number;
+    netPnl: number;
+    totalFees: number;
+    roi: number;
+    winRate: number;
+    profitFactor: number;
+    sharpeRatio: number;
+    maxDrawdown: number;
+    totalTrades: number;
+    winningTrades: number;
+    losingTrades: number;
+    avgWin: number;
+    avgLoss: number;
+    largestWin: number;
+    largestLoss: number;
+  };
+  daily: Array<{
+    date: string;
+    trades: number;
+    pnl: number;
+    winRate: number;
+  }>;
+  monthly: Array<{
+    month: string;
+    trades: number;
+    pnl: number;
+    winRate: number;
+  }>;
+  bestTrades: Trade[];
+  worstTrades: Trade[];
+}
+
 class ApiClient {
   private client: AxiosInstance;
   private baseURL: string = 'http://localhost:3001/api';
@@ -180,6 +236,53 @@ class ApiClient {
     } catch (error) {
       return false;
     }
+  }
+
+  // Trade History APIs
+  public async getTrades(params: {
+    sessionId: string;
+    limit?: number;
+    offset?: number;
+    side?: 'buy' | 'sell';
+    dateFilter?: 'all' | '1d' | '7d' | '30d';
+  }): Promise<TradeHistoryResponse> {
+    const queryParams: any = {
+      sessionId: params.sessionId,
+      limit: params.limit || 50,
+      offset: params.offset || 0,
+    };
+
+    if (params.side) {
+      queryParams.side = params.side;
+    }
+
+    if (params.dateFilter && params.dateFilter !== 'all') {
+      const days = parseInt(params.dateFilter.replace('d', ''));
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - days);
+      queryParams.startDate = startDate.toISOString();
+    }
+
+    const response = await this.client.get(`${this.baseURL}/history/trades`, {
+      params: queryParams,
+    });
+    return response.data.data;
+  }
+
+  // Analytics APIs
+  public async getPerformanceReport(sessionId: string): Promise<PerformanceReport> {
+    const response = await this.client.get(`${this.baseURL}/analytics/performance`, {
+      params: {sessionId},
+    });
+    return response.data.data;
+  }
+
+  public async exportTradesToCSV(sessionId: string): Promise<string> {
+    const response = await this.client.get(`${this.baseURL}/analytics/export/csv`, {
+      params: {sessionId},
+      responseType: 'text',
+    });
+    return response.data;
   }
 }
 
