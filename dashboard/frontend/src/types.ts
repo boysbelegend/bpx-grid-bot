@@ -123,3 +123,55 @@ export interface WSMessage {
   data?: any;
   timestamp: number;
 }
+
+// Scenario Types
+export interface ScenarioTemplate {
+  id: string;
+  name: string;
+  description: string;
+  riskLevel: 'conservative' | 'moderate' | 'aggressive';
+  marketType: 'spot' | 'futures';
+  recommended: string;
+  pros: string[];
+  cons: string[];
+  config: {
+    grid: {
+      levels: number;
+      spacing: { type: string; value: number };
+    };
+    order: {
+      quantityPerLevel: number;
+    };
+    risk: {
+      maxPositionSize: number;
+      maxPositionValue: number;
+      maxDailyLoss: number;
+      emergencyStopLoss: number;
+    };
+    futures?: {
+      leverage: number;
+      marginMode: 'cross' | 'isolated';
+      liquidationBuffer: number;
+    };
+  };
+}
+
+export interface CustomScenario extends ScenarioTemplate {
+  isCustom: true;
+  createdAt: number;
+  lastModified: number;
+}
+
+export interface UserProfile {
+  experience: 'beginner' | 'intermediate' | 'expert';
+  riskTolerance: 'low' | 'medium' | 'high';
+  marketType: 'spot' | 'futures';
+}
+
+export interface ExportScenarioConfig {
+  scenarioId: string;
+  symbol: string;
+  baseAsset: string;
+  quoteAsset: string;
+  dryRun?: boolean;
+}

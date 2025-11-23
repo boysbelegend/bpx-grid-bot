@@ -4,7 +4,16 @@
  */
 
 import axios from 'axios';
-import type { ApiResponse, DashboardState, EngineStatus, Strategy } from '../types';
+import type {
+  ApiResponse,
+  DashboardState,
+  EngineStatus,
+  Strategy,
+  ScenarioTemplate,
+  CustomScenario,
+  UserProfile,
+  ExportScenarioConfig,
+} from '../types';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
@@ -52,6 +61,40 @@ export const api = {
 
   // Strategies
   getStrategies: () => client.get<ApiResponse<Strategy[]>>('/strategies'),
+
+  // Scenarios
+  getScenarios: (marketType?: 'spot' | 'futures') =>
+    client.get<ApiResponse<ScenarioTemplate[]>>('/scenarios', {
+      params: marketType ? { marketType } : undefined,
+    }),
+
+  getScenario: (id: string) =>
+    client.get<ApiResponse<ScenarioTemplate>>(`/scenarios/${id}`),
+
+  createCustomScenario: (data: {
+    name: string;
+    description: string;
+    baseScenarioId: string;
+    customizations: Partial<ScenarioTemplate['config']>;
+  }) => client.post<ApiResponse<CustomScenario>>('/scenarios/custom', data),
+
+  updateCustomScenario: (
+    id: string,
+    data: {
+      name?: string;
+      description?: string;
+      config?: Partial<ScenarioTemplate['config']>;
+    }
+  ) => client.put<ApiResponse<CustomScenario>>(`/scenarios/custom/${id}`, data),
+
+  deleteCustomScenario: (id: string) =>
+    client.delete<ApiResponse>(`/scenarios/custom/${id}`),
+
+  exportScenario: (data: ExportScenarioConfig) =>
+    client.post<ApiResponse<any>>('/scenarios/export', data),
+
+  getRecommendations: (profile: UserProfile) =>
+    client.post<ApiResponse<ScenarioTemplate[]>>('/scenarios/recommendations', profile),
 };
 
 export default api;

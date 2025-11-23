@@ -76,6 +76,15 @@ app.get('/', (req: Request, res: Response) => {
         resume: 'POST /api/control/resume',
       },
       strategies: '/api/strategies',
+      scenarios: {
+        list: 'GET /api/scenarios?marketType=spot|futures',
+        get: 'GET /api/scenarios/:id',
+        create: 'POST /api/scenarios/custom',
+        update: 'PUT /api/scenarios/custom/:id',
+        delete: 'DELETE /api/scenarios/custom/:id',
+        export: 'POST /api/scenarios/export',
+        recommendations: 'POST /api/scenarios/recommendations',
+      },
       websocket: 'ws://localhost:' + PORT + '/ws',
     },
   });
