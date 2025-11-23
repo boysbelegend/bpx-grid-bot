@@ -1,368 +1,160 @@
 /**
  * Notification Manager
- * Sends trading alerts via Telegram, Discord, and other channels
+ * Unified notification system supporting multiple channels
  */
 
-import axios from 'axios';
-import { logger } from '../utils/logger';
+import { logger } from '../utils';
 
-export interface NotificationConfig {
-  enabled: boolean;
-  channels: {
-    telegram?: {
-      enabled: boolean;
-      botToken: string;
-      chatId: string;
-    };
-    discord?: {
-      enabled: boolean;
-      webhookUrl: string;
-    };
-  };
-  events: {
-    trade: boolean;
-    risk: boolean;
-    error: boolean;
-    dailyReport: boolean;
-    positionChange: boolean;
-    liquidationWarning: boolean;
-  };
-}
-
-export enum NotificationLevel {
-  INFO = 'INFO',
-  WARNING = 'WARNING',
-  ERROR = 'ERROR',
-  CRITICAL = 'CRITICAL',
-}
+export type NotificationLevel = 'info' | 'warning' | 'error' | 'critical';
 
 export interface NotificationMessage {
-  level: NotificationLevel;
   title: string;
   message: string;
+  level: NotificationLevel;
   timestamp: number;
-  data?: any;
+  metadata?: Record<string, any>;
+}
+
+export interface NotificationChannel {
+  name: string;
+  enabled: boolean;
+  send(message: NotificationMessage): Promise<boolean>;
+}
+
+export interface NotificationConfig {
+  enabledChannels: string[];
+  minLevel?: NotificationLevel;
+  rateLimit?: {
+    maxPerHour?: number;
+    maxPerDay?: number;
+  };
+  quietHours?: {
+    start: number;
+    end: number;
+    timezone?: string;
+  };
 }
 
 export class NotificationManager {
+  private channels: Map<string, NotificationChannel> = new Map();
   private config: NotificationConfig;
-  private enabled: boolean;
+  private sentCount: { hourly: number; daily: number } = { hourly: 0, daily: 0 };
+  private lastResetTime: { hour: number; day: number };
+
+  private readonly LEVEL_PRIORITY: Record<NotificationLevel, number> = {
+    info: 0,
+    warning: 1,
+    error: 2,
+    critical: 3,
+  };
 
   constructor(config: NotificationConfig) {
     this.config = config;
-    this.enabled = config.enabled;
-
-    if (this.enabled) {
-      this.validateConfig();
-      logger.info('NotificationManager initialized');
-    } else {
-      logger.info('NotificationManager disabled');
-    }
+    const now = Date.now();
+    this.lastResetTime = { hour: now, day: now };
   }
 
-  /**
-   * Validate notification configuration
-   */
-  private validateConfig(): void {
-    if (this.config.channels.telegram?.enabled) {
-      if (!this.config.channels.telegram.botToken || !this.config.channels.telegram.chatId) {
-        logger.warn('Telegram enabled but missing botToken or chatId');
-        this.config.channels.telegram.enabled = false;
-      }
-    }
-
-    if (this.config.channels.discord?.enabled) {
-      if (!this.config.channels.discord.webhookUrl) {
-        logger.warn('Discord enabled but missing webhookUrl');
-        this.config.channels.discord.enabled = false;
-      }
-    }
+  public registerChannel(channel: NotificationChannel): void {
+    this.channels.set(channel.name, channel);
+    logger.info(\`Notification channel registered: \${channel.name}\`);
   }
 
-  /**
-   * Send notification to all enabled channels
-   */
-  async send(notification: NotificationMessage): Promise<void> {
-    if (!this.enabled) {
-      return;
-    }
-
-    const promises: Promise<void>[] = [];
-
-    if (this.config.channels.telegram?.enabled) {
-      promises.push(this.sendTelegram(notification));
-    }
-
-    if (this.config.channels.discord?.enabled) {
-      promises.push(this.sendDiscord(notification));
-    }
-
-    await Promise.allSettled(promises);
-  }
-
-  /**
-   * Send trade notification
-   */
-  async notifyTrade(data: {
-    side: 'Buy' | 'Sell';
-    price: number;
-    quantity: number;
-    symbol: string;
-    pnl?: number;
-  }): Promise<void> {
-    if (!this.config.events.trade) {
-      return;
-    }
-
-    const emoji = data.side === 'Buy' ? '🟢' : '🔴';
-    const pnlText = data.pnl !== undefined ? `\n💰 PnL: ${data.pnl >= 0 ? '+' : ''}$${data.pnl.toFixed(2)}` : '';
-
-    await this.send({
-      level: NotificationLevel.INFO,
-      title: `${emoji} ${data.side} Order Filled`,
-      message: `Symbol: ${data.symbol}\nPrice: $${data.price.toFixed(2)}\nQuantity: ${data.quantity}${pnlText}`,
-      timestamp: Date.now(),
-      data,
-    });
-  }
-
-  /**
-   * Send risk warning notification
-   */
-  async notifyRiskWarning(data: {
-    type: string;
-    message: string;
-    violations?: string[];
-    warnings?: string[];
-  }): Promise<void> {
-    if (!this.config.events.risk) {
-      return;
-    }
-
-    const level = data.violations && data.violations.length > 0
-      ? NotificationLevel.ERROR
-      : NotificationLevel.WARNING;
-
-    let message = data.message;
-    if (data.violations && data.violations.length > 0) {
-      message += '\n\n⛔ Violations:\n' + data.violations.map(v => `• ${v}`).join('\n');
-    }
-    if (data.warnings && data.warnings.length > 0) {
-      message += '\n\n⚠️ Warnings:\n' + data.warnings.map(w => `• ${w}`).join('\n');
-    }
-
-    await this.send({
-      level,
-      title: '⚠️ Risk Warning',
+  public async notify(
+    title: string,
+    message: string,
+    level: NotificationLevel = 'info',
+    metadata?: Record<string, any>
+  ): Promise<void> {
+    const notification: NotificationMessage = {
+      title,
       message,
-      timestamp: Date.now(),
-      data,
-    });
-  }
-
-  /**
-   * Send liquidation warning (futures only)
-   */
-  async notifyLiquidationWarning(data: {
-    symbol: string;
-    currentPrice: number;
-    liquidationPrice: number;
-    distancePercent: number;
-    action?: string;
-  }): Promise<void> {
-    if (!this.config.events.liquidationWarning) {
-      return;
-    }
-
-    const level = data.distancePercent < 5 ? NotificationLevel.CRITICAL : NotificationLevel.WARNING;
-
-    await this.send({
       level,
-      title: '🚨 Liquidation Warning',
-      message: `Symbol: ${data.symbol}\nCurrent: $${data.currentPrice.toFixed(2)}\nLiquidation: $${data.liquidationPrice.toFixed(2)}\nDistance: ${data.distancePercent.toFixed(2)}%${data.action ? `\n\n⚡ Action: ${data.action}` : ''}`,
       timestamp: Date.now(),
-      data,
-    });
-  }
+      metadata,
+    };
 
-  /**
-   * Send error notification
-   */
-  async notifyError(error: Error, context?: string): Promise<void> {
-    if (!this.config.events.error) {
+    if (!this.shouldSendNotification(notification)) {
+      logger.debug(\`Notification skipped: \${title}\`, { level, reason: 'filtered' });
       return;
     }
 
-    await this.send({
-      level: NotificationLevel.ERROR,
-      title: '❌ Error Occurred',
-      message: `${context ? `Context: ${context}\n` : ''}Error: ${error.message}\n\nStack:\n${error.stack?.substring(0, 500)}`,
-      timestamp: Date.now(),
-      data: { error: error.message, context },
-    });
-  }
+    this.updateRateLimitCounters();
+    this.sentCount.hourly++;
+    this.sentCount.daily++;
 
-  /**
-   * Send daily report
-   */
-  async notifyDailyReport(data: {
-    totalTrades: number;
-    winningTrades: number;
-    losingTrades: number;
-    totalPnl: number;
-    winRate: number;
-    bestTrade: number;
-    worstTrade: number;
-  }): Promise<void> {
-    if (!this.config.events.dailyReport) {
+    const enabledChannels = Array.from(this.channels.values()).filter(
+      (channel) => channel.enabled && this.config.enabledChannels.includes(channel.name)
+    );
+
+    if (enabledChannels.length === 0) {
+      logger.warn('No enabled notification channels');
       return;
     }
 
-    const pnlEmoji = data.totalPnl >= 0 ? '📈' : '📉';
-    const pnlSign = data.totalPnl >= 0 ? '+' : '';
-
-    await this.send({
-      level: NotificationLevel.INFO,
-      title: `${pnlEmoji} Daily Report`,
-      message: `Trades: ${data.totalTrades} (${data.winningTrades}W / ${data.losingTrades}L)\nWin Rate: ${(data.winRate * 100).toFixed(1)}%\nTotal PnL: ${pnlSign}$${data.totalPnl.toFixed(2)}\nBest: +$${data.bestTrade.toFixed(2)}\nWorst: -$${Math.abs(data.worstTrade).toFixed(2)}`,
-      timestamp: Date.now(),
-      data,
-    });
+    await Promise.allSettled(
+      enabledChannels.map((channel) => channel.send(notification))
+    );
   }
 
-  /**
-   * Send position change notification
-   */
-  async notifyPositionChange(data: {
-    symbol: string;
-    oldPosition: number;
-    newPosition: number;
-    reason: string;
-  }): Promise<void> {
-    if (!this.config.events.positionChange) {
-      return;
-    }
-
-    const change = newPosition - oldPosition;
-    const changeEmoji = change > 0 ? '📊' : '📉';
-
-    await this.send({
-      level: NotificationLevel.INFO,
-      title: `${changeEmoji} Position Changed`,
-      message: `Symbol: ${data.symbol}\nOld: ${oldPosition.toFixed(4)}\nNew: ${newPosition.toFixed(4)}\nChange: ${change >= 0 ? '+' : ''}${change.toFixed(4)}\nReason: ${data.reason}`,
-      timestamp: Date.now(),
-      data,
-    });
+  public async info(title: string, message: string, metadata?: Record<string, any>): Promise<void> {
+    await this.notify(title, message, 'info', metadata);
   }
 
-  /**
-   * Send notification via Telegram
-   */
-  private async sendTelegram(notification: NotificationMessage): Promise<void> {
-    if (!this.config.channels.telegram?.enabled) {
-      return;
-    }
-
-    try {
-      const { botToken, chatId } = this.config.channels.telegram;
-      const levelEmoji = this.getLevelEmoji(notification.level);
-
-      const text = `${levelEmoji} *${notification.title}*\n\n${notification.message}\n\n_${new Date(notification.timestamp).toLocaleString()}_`;
-
-      await axios.post(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-        chat_id: chatId,
-        text,
-        parse_mode: 'Markdown',
-      });
-
-      logger.debug({ title: notification.title }, 'Telegram notification sent');
-    } catch (error: any) {
-      logger.error({ error, notification }, 'Failed to send Telegram notification');
-    }
+  public async warning(title: string, message: string, metadata?: Record<string, any>): Promise<void> {
+    await this.notify(title, message, 'warning', metadata);
   }
 
-  /**
-   * Send notification via Discord
-   */
-  private async sendDiscord(notification: NotificationMessage): Promise<void> {
-    if (!this.config.channels.discord?.enabled) {
-      return;
-    }
-
-    try {
-      const { webhookUrl } = this.config.channels.discord;
-      const color = this.getLevelColor(notification.level);
-
-      await axios.post(webhookUrl, {
-        embeds: [
-          {
-            title: notification.title,
-            description: notification.message,
-            color,
-            timestamp: new Date(notification.timestamp).toISOString(),
-            footer: {
-              text: `BPX Grid Bot • ${notification.level}`,
-            },
-          },
-        ],
-      });
-
-      logger.debug({ title: notification.title }, 'Discord notification sent');
-    } catch (error: any) {
-      logger.error({ error, notification }, 'Failed to send Discord notification');
-    }
+  public async error(title: string, message: string, metadata?: Record<string, any>): Promise<void> {
+    await this.notify(title, message, 'error', metadata);
   }
 
-  /**
-   * Get emoji for notification level
-   */
-  private getLevelEmoji(level: NotificationLevel): string {
-    switch (level) {
-      case NotificationLevel.INFO:
-        return 'ℹ️';
-      case NotificationLevel.WARNING:
-        return '⚠️';
-      case NotificationLevel.ERROR:
-        return '❌';
-      case NotificationLevel.CRITICAL:
-        return '🚨';
-      default:
-        return '📢';
+  public async critical(title: string, message: string, metadata?: Record<string, any>): Promise<void> {
+    await this.notify(title, message, 'critical', metadata);
+  }
+
+  public getStats(): { hourly: number; daily: number; channels: string[] } {
+    this.updateRateLimitCounters();
+    return {
+      hourly: this.sentCount.hourly,
+      daily: this.sentCount.daily,
+      channels: Array.from(this.channels.keys()),
+    };
+  }
+
+  private shouldSendNotification(notification: NotificationMessage): boolean {
+    const minLevel = this.config.minLevel || 'info';
+    if (this.LEVEL_PRIORITY[notification.level] < this.LEVEL_PRIORITY[minLevel]) {
+      return false;
     }
-  }
 
-  /**
-   * Get color for Discord embed based on level
-   */
-  private getLevelColor(level: NotificationLevel): number {
-    switch (level) {
-      case NotificationLevel.INFO:
-        return 0x3498db; // Blue
-      case NotificationLevel.WARNING:
-        return 0xf39c12; // Orange
-      case NotificationLevel.ERROR:
-        return 0xe74c3c; // Red
-      case NotificationLevel.CRITICAL:
-        return 0x992d22; // Dark Red
-      default:
-        return 0x95a5a6; // Gray
+    if (notification.level !== 'critical') {
+      this.updateRateLimitCounters();
+
+      if (this.config.rateLimit?.maxPerHour && this.sentCount.hourly >= this.config.rateLimit.maxPerHour) {
+        return false;
+      }
+
+      if (this.config.rateLimit?.maxPerDay && this.sentCount.daily >= this.config.rateLimit.maxPerDay) {
+        return false;
+      }
     }
+
+    return true;
   }
 
-  /**
-   * Enable or disable notifications
-   */
-  setEnabled(enabled: boolean): void {
-    this.enabled = enabled;
-    logger.info({ enabled }, 'Notifications toggled');
-  }
+  private updateRateLimitCounters(): void {
+    const now = Date.now();
+    const HOUR_MS = 60 * 60 * 1000;
+    const DAY_MS = 24 * HOUR_MS;
 
-  /**
-   * Update configuration
-   */
-  updateConfig(config: Partial<NotificationConfig>): void {
-    this.config = { ...this.config, ...config };
-    this.validateConfig();
-    logger.info('Notification config updated');
+    if (now - this.lastResetTime.hour >= HOUR_MS) {
+      this.sentCount.hourly = 0;
+      this.lastResetTime.hour = now;
+    }
+
+    if (now - this.lastResetTime.day >= DAY_MS) {
+      this.sentCount.daily = 0;
+      this.lastResetTime.day = now;
+    }
   }
 }

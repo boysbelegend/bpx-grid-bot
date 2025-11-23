@@ -1,22 +1,35 @@
 {
-  "enabled": true,
-  "channels": {
-    "telegram": {
-      "enabled": true,
-      "botToken": "YOUR_TELEGRAM_BOT_TOKEN",
-      "chatId": "YOUR_CHAT_ID"
+  "notification": {
+    "enabledChannels": ["telegram", "email", "discord"],
+    "minLevel": "warning",
+    "rateLimit": {
+      "maxPerHour": 10,
+      "maxPerDay": 50
     },
-    "discord": {
-      "enabled": false,
-      "webhookUrl": "https://discord.com/api/webhooks/YOUR_WEBHOOK_URL"
+    "quietHours": {
+      "start": 23,
+      "end": 7,
+      "timezone": "UTC"
     }
   },
-  "events": {
-    "trade": true,
-    "risk": true,
-    "error": true,
-    "dailyReport": true,
-    "positionChange": false,
-    "liquidationWarning": true
+  "email": {
+    "host": "smtp.gmail.com",
+    "port": 587,
+    "secure": false,
+    "auth": {
+      "user": "your-email@gmail.com",
+      "pass": "your-app-password"
+    },
+    "from": "BPX Grid Bot <your-email@gmail.com>",
+    "to": ["your-email@gmail.com"]
+  },
+  "discord": {
+    "webhookUrl": "https://discord.com/api/webhooks/YOUR_WEBHOOK_ID/YOUR_WEBHOOK_TOKEN",
+    "username": "BPX Grid Bot",
+    "avatarUrl": ""
+  },
+  "telegram": {
+    "botToken": "YOUR_BOT_TOKEN",
+    "chatId": "YOUR_CHAT_ID"
   }
 }

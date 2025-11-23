@@ -21,6 +21,7 @@ import {
   OrderStatus,
 } from '../core/interfaces/types';
 import { logger, retry, sleep } from '../utils';
+import { MultiTierRateLimiter } from '../utils/RateLimiter';
 
 const API_ENDPOINT = 'https://api.backpack.exchange';
 const WS_ENDPOINT = 'wss://ws.backpack.exchange';
@@ -35,6 +36,9 @@ interface BackpackConfig {
   wsEndpoint?: string;
   xWindow?: number;
   wsReconnectTimeout?: number;
+  enableRateLimiting?: boolean;
+  maxRequestsPerSecond?: number;
+  maxRequestsPerMinute?: number;
 }
 
 export class BackpackClient implements IExchangeClient {
@@ -48,6 +52,12 @@ export class BackpackClient implements IExchangeClient {
   private isWsConnected: boolean = false;
   private orderUpdateCallbacks: ((update: OrderUpdate) => void)[] = [];
   private marketDataCallbacks: Map<string, (data: MarketData) => void> = new Map();
+  private rateLimiter: MultiTierRateLimiter | null = null;
+  private heartbeatInterval: NodeJS.Timeout | null = null;
+  private lastPongTimestamp: number = Date.now();
+  private missedPongs: number = 0;
+  private readonly HEARTBEAT_INTERVAL_MS = 30000; // 30 seconds
+  private readonly MAX_MISSED_PONGS = 3;
 
   constructor(config: BackpackConfig) {
     this.apiKey = config.apiKey;
@@ -56,6 +66,28 @@ export class BackpackClient implements IExchangeClient {
     this.wsEndpoint = config.wsEndpoint || WS_ENDPOINT;
     this.xWindow = config.xWindow || DEFAULT_X_WINDOW;
     this.wsReconnectTimeout = config.wsReconnectTimeout || DEFAULT_WS_RECONNECT_TIMEOUT;
+
+    // Initialize rate limiter if enabled
+    if (config.enableRateLimiting !== false) {
+      // Default: enabled
+      this.rateLimiter = new MultiTierRateLimiter([
+        {
+          name: 'per-second',
+          config: {
+            maxRequestsPerSecond: config.maxRequestsPerSecond || 10,
+            maxBurst: 15,
+          },
+        },
+        {
+          name: 'per-minute',
+          config: {
+            maxRequestsPerMinute: config.maxRequestsPerMinute || 300,
+            maxBurst: 50,
+          },
+        },
+      ]);
+      logger.info('Rate limiting enabled for BackpackClient');
+    }
   }
 
   // ============================================================================
@@ -236,7 +268,21 @@ export class BackpackClient implements IExchangeClient {
   }
 
   async disconnect(): Promise<void> {
+    this.stopHeartbeat();
     await this.unsubscribeAll();
+  }
+
+  /**
+   * Get rate limiter statistics (if rate limiting is enabled)
+   */
+  getRateLimiterStats(): any {
+    if (!this.rateLimiter) {
+      return { enabled: false };
+    }
+    return {
+      enabled: true,
+      stats: this.rateLimiter.getAllStats(),
+    };
   }
 
   // ============================================================================
@@ -314,6 +360,11 @@ export class BackpackClient implements IExchangeClient {
     headers: Record<string, string>,
     data: Record<string, any>
   ): Promise<any> {
+    // Apply rate limiting if enabled
+    if (this.rateLimiter) {
+      await this.rateLimiter.acquire(1);
+    }
+
     headers['User-Agent'] = 'BPX-Grid-Bot';
     headers['Content-Type'] = 'application/json; charset=utf-8';
 
@@ -366,6 +417,54 @@ export class BackpackClient implements IExchangeClient {
     return crypto.createPrivateKey({ key: der as any, format: 'der', type: 'pkcs8' });
   }
 
+  /**
+   * Start WebSocket heartbeat (ping-pong mechanism)
+   */
+  private startHeartbeat(): void {
+    this.stopHeartbeat(); // Clear any existing interval
+
+    this.heartbeatInterval = setInterval(() => {
+      if (!this.wss || !this.isWsConnected) {
+        this.stopHeartbeat();
+        return;
+      }
+
+      // Check if we've missed too many pongs
+      const timeSinceLastPong = Date.now() - this.lastPongTimestamp;
+      if (timeSinceLastPong > this.HEARTBEAT_INTERVAL_MS * 2) {
+        this.missedPongs++;
+        logger.warn(`WebSocket heartbeat: missed pong #${this.missedPongs}`);
+
+        if (this.missedPongs >= this.MAX_MISSED_PONGS) {
+          logger.error('WebSocket heartbeat: too many missed pongs, closing connection');
+          this.wss.terminate();
+          return;
+        }
+      }
+
+      // Send ping
+      try {
+        this.wss.ping();
+        logger.debug('WebSocket ping sent');
+      } catch (error) {
+        logger.error(error as Error, 'Failed to send WebSocket ping');
+      }
+    }, this.HEARTBEAT_INTERVAL_MS);
+
+    logger.info(`WebSocket heartbeat started (interval: ${this.HEARTBEAT_INTERVAL_MS}ms)`);
+  }
+
+  /**
+   * Stop WebSocket heartbeat
+   */
+  private stopHeartbeat(): void {
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval);
+      this.heartbeatInterval = null;
+      logger.debug('WebSocket heartbeat stopped');
+    }
+  }
+
   private async wsConnect(): Promise<void> {
     return new Promise((resolve, reject) => {
       if (this.isWsConnected) {
@@ -377,12 +476,16 @@ export class BackpackClient implements IExchangeClient {
 
       this.wss.on('open', () => {
         this.isWsConnected = true;
+        this.missedPongs = 0;
+        this.lastPongTimestamp = Date.now();
         logger.info('WebSocket connected to Backpack');
+        this.startHeartbeat();
         resolve();
       });
 
       this.wss.on('close', () => {
         this.isWsConnected = false;
+        this.stopHeartbeat();
         logger.warn('WebSocket disconnected from Backpack');
         setTimeout(() => {
           this.wsConnect().catch((error) => {
@@ -394,6 +497,12 @@ export class BackpackClient implements IExchangeClient {
       this.wss.on('error', (error) => {
         logger.error(error, 'WebSocket error');
         reject(error);
+      });
+
+      this.wss.on('pong', () => {
+        this.lastPongTimestamp = Date.now();
+        this.missedPongs = 0;
+        logger.debug('WebSocket pong received');
       });
 
       this.wss.on('message', (data: WebSocket.Data) => {
