@@ -1,0 +1,39 @@
+{
+  "name": "SOL AMM Grid Strategy",
+  "type": "spot",
+  "symbol": "SOL_USDC",
+  "baseAsset": "SOL",
+  "quoteAsset": "USDC",
+
+  "grid": {
+    "mode": "mean-reversion",
+    "levels": 20,
+    "spacing": {
+      "type": "percentage",
+      "value": 1.0
+    },
+    "range": {
+      "lower": "auto",
+      "upper": "auto"
+    }
+  },
+
+  "order": {
+    "quantityPerLevel": 0.05,
+    "orderType": "Limit",
+    "timeInForce": "GTC"
+  },
+
+  "risk": {
+    "maxPositionSize": 10.0,
+    "maxPositionValue": 2000,
+    "maxDailyLoss": 100,
+    "maxOrderCount": 40,
+    "rebalanceThreshold": 3.0,
+    "emergencyStopLoss": 10.0
+  },
+
+  "dryRun": true,
+  "cancelOrdersOnStart": true,
+  "telegramNotify": false
+}

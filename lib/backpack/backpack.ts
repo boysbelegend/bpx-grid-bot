@@ -87,8 +87,8 @@ const _logger = pino(
 function _toPkcs8der(rawB64: string): KeyObject {
     var rawPrivate = Buffer.from(rawB64, 'base64').subarray(0, 32);
     var prefixPrivateEd25519 = Buffer.from('302e020100300506032b657004220420', 'hex');
-    var der = Buffer.concat([prefixPrivateEd25519, rawPrivate]);
-    return crypto.createPrivateKey({ key: der, format: "der", type: "pkcs8" })
+    var der = Buffer.concat([prefixPrivateEd25519 as any, rawPrivate as any]);
+    return crypto.createPrivateKey({ key: der as any, format: "der", type: "pkcs8" })
 }
 
 /** @internal */
@@ -246,7 +246,7 @@ export class Connection {
             (_params ? "&" + _params : "") +
             "&timestamp=" + timestamp +
             "&window=" + this._xWindow;
-        return crypto.sign(null, Buffer.from(_message), this._apiSecret).toString("base64");
+        return crypto.sign(null as any, Buffer.from(_message) as any, this._apiSecret).toString("base64");
     };
 
     async apiCall(instruction: string, params: Object = {}, retry: number = 3): Promise<any> {

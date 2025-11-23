@@ -1,0 +1,50 @@
+{
+  "name": "Strategy Template",
+  "type": "spot",
+  "symbol": "SOL_USDC",
+  "baseAsset": "SOL",
+  "quoteAsset": "USDC",
+
+  "grid": {
+    "mode": "mean-reversion",
+    "levels": 20,
+    "spacing": {
+      "type": "percentage",
+      "value": 1.0
+    },
+    "range": {
+      "lower": "auto",
+      "upper": "auto"
+    }
+  },
+
+  "order": {
+    "quantityPerLevel": 0.1,
+    "orderType": "Limit",
+    "timeInForce": "GTC"
+  },
+
+  "risk": {
+    "maxPositionSize": 10.0,
+    "maxPositionValue": 1000,
+    "maxDailyLoss": 50,
+    "maxOrderCount": 40,
+    "rebalanceThreshold": 3.0,
+    "emergencyStopLoss": 10.0
+  },
+
+  "dryRun": true,
+  "cancelOrdersOnStart": true,
+  "telegramNotify": false,
+
+  "_comments": {
+    "mode": "mean-reversion | trend-following | adaptive",
+    "spacing.type": "percentage | fixed",
+    "spacing.value": "For percentage: 1.0 = 1%, for fixed: absolute price difference",
+    "range": "Use 'auto' for automatic calculation based on current price, or specify numbers",
+    "orderType": "Limit | PostOnly",
+    "timeInForce": "GTC | IOC | FOK",
+    "rebalanceThreshold": "Percentage price movement to trigger rebalance",
+    "emergencyStopLoss": "Percentage loss to trigger emergency stop"
+  }
+}

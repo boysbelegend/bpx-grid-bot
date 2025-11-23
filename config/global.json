@@ -1,0 +1,17 @@
+{
+  "exchange": {
+    "name": "backpack",
+    "apiKey": "",
+    "apiSecret": "",
+    "testnet": false
+  },
+  "telegram": {
+    "botToken": "",
+    "chatId": "",
+    "notifyInterval": 3600000
+  },
+  "logging": {
+    "level": "info",
+    "file": "trading.log"
+  }
+}

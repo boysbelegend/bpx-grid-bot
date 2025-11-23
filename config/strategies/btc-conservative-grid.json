@@ -1,0 +1,39 @@
+{
+  "name": "BTC Conservative Grid Strategy",
+  "type": "spot",
+  "symbol": "BTC_USDC",
+  "baseAsset": "BTC",
+  "quoteAsset": "USDC",
+
+  "grid": {
+    "mode": "mean-reversion",
+    "levels": 15,
+    "spacing": {
+      "type": "percentage",
+      "value": 2.0
+    },
+    "range": {
+      "lower": "auto",
+      "upper": "auto"
+    }
+  },
+
+  "order": {
+    "quantityPerLevel": 0.001,
+    "orderType": "Limit",
+    "timeInForce": "GTC"
+  },
+
+  "risk": {
+    "maxPositionSize": 0.05,
+    "maxPositionValue": 5000,
+    "maxDailyLoss": 200,
+    "maxOrderCount": 30,
+    "rebalanceThreshold": 5.0,
+    "emergencyStopLoss": 15.0
+  },
+
+  "dryRun": true,
+  "cancelOrdersOnStart": true,
+  "telegramNotify": false
+}

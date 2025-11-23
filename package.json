@@ -1,15 +1,23 @@
 {
-  "name": "backpack-grid-bot",
-  "version": "1.0.0",
-  "main": "app.ts",
-  "description": "A Grid Trading Bot For Backpack Exchange.",
-  "repository": "git@github.com:pordria/backpack-grid-bot.git",
+  "name": "bpx-grid-bot",
+  "version": "2.0.0",
+  "main": "dist/src/app.js",
+  "description": "AMM-Style Spread Trading System for Backpack Exchange - Spot & Futures Grid Bot",
+  "repository": "git@github.com:boysbelegend/bpx-grid-bot.git",
   "license": "MIT",
-  "author": "pordria <pordria@outlook.com>",
+  "author": "boysbelegend",
   "scripts": {
-    "start": "tsc && pm2 start dist/app.js --name grid-trading-bot --log gridbot.log",
+    "build": "tsc",
     "dev": "tsc -w",
-    "build": "tsc"
+    "start": "yarn build && node dist/src/app.js",
+    "start:prod": "yarn build && pm2 start dist/src/app.js --name grid-bot --log gridbot.log",
+    "start:sol": "yarn build && node dist/src/app.js config/strategies/sol-amm-grid.json",
+    "start:btc": "yarn build && node dist/src/app.js config/strategies/btc-conservative-grid.json",
+    "legacy": "tsc && node dist/app.js",
+    "stop": "pm2 stop grid-bot",
+    "restart": "pm2 restart grid-bot",
+    "logs": "pm2 logs grid-bot",
+    "clean": "rm -rf dist"
   },
   "dependencies": {
     "axios": "^1.7.4",
