@@ -16,6 +16,7 @@ import { PositionManager } from '../core/PositionManager';
 import { RiskManager } from '../core/RiskManager';
 import { OrderManager } from '../core/OrderManager';
 import { logger, log, sleep } from '../utils';
+import { databaseService } from '../services/DatabaseService';
 
 export interface TradingEngineConfig {
   client: IExchangeClient;
@@ -23,6 +24,7 @@ export interface TradingEngineConfig {
   strategyConfig: StrategyConfig;
   updateIntervalMs?: number;
   statusIntervalMs?: number;
+  enableDatabase?: boolean;
 }
 
 export class TradingEngine {
@@ -44,6 +46,8 @@ export class TradingEngine {
   private lastRebalancePrice: number = 0;
   private lastRebalanceTime: number = 0;
 
+  private enableDatabase: boolean;
+
   constructor(engineConfig: TradingEngineConfig) {
     this.client = engineConfig.client;
     this.strategy = engineConfig.strategy;
@@ -51,6 +55,7 @@ export class TradingEngine {
 
     this.updateIntervalMs = engineConfig.updateIntervalMs || 30000; // 30 seconds
     this.statusIntervalMs = engineConfig.statusIntervalMs || 60000; // 60 seconds
+    this.enableDatabase = engineConfig.enableDatabase !== false; // Default: true
 
     // Initialize managers
     this.positionManager = new PositionManager({
@@ -75,6 +80,7 @@ export class TradingEngine {
       strategy: this.strategy.name,
       type: this.config.type,
       dryRun: this.config.dryRun,
+      database: this.enableDatabase,
     });
   }
 
@@ -85,6 +91,11 @@ export class TradingEngine {
     try {
       this.state.status = 'initializing';
       logger.info(`[ENGINE] Starting trading engine...`);
+
+      // Step 0: Initialize database (if enabled)
+      if (this.enableDatabase) {
+        await databaseService.initialize();
+      }
 
       // Step 1: Initialize order manager
       await this.orderManager.initialize();
@@ -104,6 +115,19 @@ export class TradingEngine {
         quoteAsset: `${inventory.quoteAsset.total} ${inventory.quoteAsset.symbol}`,
         netValue: inventory.netValue.toFixed(2),
       });
+
+      // Step 3.5: Start database session (if enabled)
+      if (this.enableDatabase) {
+        await databaseService.startSession({
+          symbol: this.config.symbol,
+          marketType: this.config.type,
+          strategyName: this.strategy.name,
+          dryRun: this.config.dryRun || false,
+          initialCapital: inventory.netValue,
+          leverage: this.config.futures?.maxLeverage || 1,
+        });
+        logger.info(`[ENGINE] Database session started`);
+      }
 
       // Step 4: Initialize risk manager
       this.riskManager.initialize(inventory.netValue);
@@ -168,6 +192,12 @@ export class TradingEngine {
       if (cancelOrders) {
         logger.info(`[ENGINE] Cancelling all orders...`);
         await this.orderManager.cancelAllOrders();
+      }
+
+      // Update database session status (if enabled)
+      if (this.enableDatabase) {
+        await databaseService.updateSessionStatus('stopped');
+        logger.info(`[ENGINE] Database session ended`);
       }
 
       // Disconnect from exchange
@@ -273,6 +303,20 @@ export class TradingEngine {
       const ticker = await this.client.getTicker(this.config.symbol);
       this.positionManager.updateFromFill(fill, ticker.lastPrice);
 
+      // Record trade in database (if enabled)
+      if (this.enableDatabase) {
+        const pnl = this.positionManager.getPnLSnapshot(ticker.lastPrice);
+        await databaseService.recordTrade({
+          symbol: this.config.symbol,
+          side: fill.side.toLowerCase() as 'buy' | 'sell',
+          price: fill.price,
+          quantity: fill.quantity,
+          fee: fill.fee,
+          orderId: fill.orderId,
+          realizedPnl: fill.side.toLowerCase() === 'sell' ? pnl.realizedPnl : undefined,
+        });
+      }
+
       // Notify strategy
       const inventory = this.positionManager.getInventory();
       this.strategy.onOrderFill(fill, inventory);
@@ -352,8 +396,39 @@ export class TradingEngine {
     const ticker = await this.client.getTicker(this.config.symbol);
     const currentPrice = ticker.lastPrice;
 
-    // Check risk limits
+    // Get current inventory and PnL
     const inventory = this.positionManager.getInventory();
+    const pnl = this.positionManager.getPnLSnapshot(currentPrice);
+
+    // Save snapshots to database (if enabled and interval elapsed)
+    if (this.enableDatabase) {
+      await databaseService.saveAllSnapshots({
+        position: {
+          baseBalance: inventory.baseAsset.total,
+          quoteBalance: inventory.quoteAsset.total,
+          totalValue: inventory.netValue,
+          marketPrice: currentPrice,
+          inventoryRatio: inventory.ratio,
+        },
+        pnl: {
+          realizedPnl: pnl.realizedPnl,
+          unrealizedPnl: pnl.unrealizedPnl,
+          totalPnl: pnl.totalPnl,
+          roi: pnl.roi,
+          totalTrades: pnl.trades,
+          winningTrades: pnl.wins,
+          losingTrades: pnl.losses,
+        },
+        risk: {
+          maxDrawdown: this.riskManager['maxDrawdown'] || 0,
+          currentDrawdown: this.riskManager.getCurrentDrawdown ? this.riskManager.getCurrentDrawdown() : 0,
+          dailyLoss: pnl.dailyPnl < 0 ? Math.abs(pnl.dailyPnl) : 0,
+          exposure: (inventory.baseAsset.total * currentPrice) / inventory.netValue,
+        },
+      });
+    }
+
+    // Check risk limits
     const activeOrderCount = this.orderManager.getActiveOrderCount();
     const riskStatus = this.riskManager.checkRiskLimits(
       inventory,
