@@ -354,6 +354,72 @@ export function createRouter(engineManager: EngineManager): Router {
     }
   });
 
+  /**
+   * Run backtest for scenario
+   */
+  router.post('/backtest/run', async (req: Request, res: Response) => {
+    try {
+      const { scenarioId, symbol, days = 7, telegramChatId } = req.body;
+
+      if (!scenarioId || !symbol) {
+        return res.status(400).json(error('Missing required fields: scenarioId, symbol'));
+      }
+
+      logger.info({ scenarioId, symbol, days }, 'Starting backtest');
+
+      // Execute Python backtest script
+      const { spawn } = await import('child_process');
+      const path = await import('path');
+
+      const scriptPath = path.join(
+        engineManager['botRootPath'],
+        'backtest/quick_backtest_api.py'
+      );
+
+      const args = [
+        scriptPath,
+        '--scenario', scenarioId,
+        '--symbol', symbol,
+        '--days', days.toString()
+      ];
+
+      if (telegramChatId) {
+        args.push('--telegram-chat-id', telegramChatId.toString());
+      }
+
+      const pythonProcess = spawn('python3', args);
+
+      let output = '';
+      let errorOutput = '';
+
+      pythonProcess.stdout.on('data', (data) => {
+        output += data.toString();
+      });
+
+      pythonProcess.stderr.on('data', (data) => {
+        errorOutput += data.toString();
+      });
+
+      pythonProcess.on('close', (code) => {
+        if (code === 0) {
+          logger.info({ scenarioId, symbol }, 'Backtest completed successfully');
+          // Parse output and send result
+          res.json(success({
+            message: 'Backtest completed',
+            output: output.substring(output.length - 500) // Last 500 chars
+          }));
+        } else {
+          logger.error({ scenarioId, symbol, code, errorOutput }, 'Backtest failed');
+          res.status(500).json(error(`Backtest failed: ${errorOutput}`));
+        }
+      });
+
+    } catch (err: any) {
+      logger.error({ err }, 'Failed to run backtest');
+      res.status(500).json(error(err.message));
+    }
+  });
+
   return router;
 }
 

@@ -1,0 +1,17 @@
+{
+  "enabled": true,
+  "botToken": "YOUR_BOT_TOKEN_HERE",
+  "allowedChatIds": [123456789],
+  "commands": {
+    "status": true,
+    "pnl": true,
+    "position": true,
+    "orders": true,
+    "risk": true,
+    "start": false,
+    "stop": true,
+    "pause": true,
+    "resume": true,
+    "help": true
+  }
+}
