@@ -1,0 +1,45 @@
+{
+  "name": "SOL Futures AMM Grid Strategy",
+  "type": "futures",
+  "symbol": "SOL-PERP",
+  "baseAsset": "SOL",
+  "quoteAsset": "USDC",
+
+  "grid": {
+    "mode": "mean-reversion",
+    "levels": 16,
+    "spacing": {
+      "type": "percentage",
+      "value": 1.5
+    },
+    "range": {
+      "lower": "auto",
+      "upper": "auto"
+    }
+  },
+
+  "order": {
+    "quantityPerLevel": 0.03,
+    "orderType": "PostOnly",
+    "timeInForce": "GTC"
+  },
+
+  "risk": {
+    "maxPositionSize": 2.0,
+    "maxPositionValue": 500,
+    "maxDailyLoss": 50,
+    "maxOrderCount": 32,
+    "rebalanceThreshold": 2.5,
+    "emergencyStopLoss": 15
+  },
+
+  "futures": {
+    "leverage": 3,
+    "marginMode": "isolated",
+    "liquidationBuffer": 8
+  },
+
+  "dryRun": true,
+  "cancelOrdersOnStart": true,
+  "telegramNotify": false
+}

@@ -318,3 +318,67 @@ export interface CalculationResult<T> {
   data?: T;
   error?: string;
 }
+
+// ============================================================================
+// Futures-Specific Types
+// ============================================================================
+
+export interface FuturesPosition extends Position {
+  symbol: string;
+  side: 'Long' | 'Short';
+  size: number;
+  entryPrice: number;
+  markPrice: number;
+  liquidationPrice: number;
+  unrealizedPnl: number;
+  realizedPnl: number;
+  leverage: number;
+  marginMode: 'cross' | 'isolated';
+  margin: number;
+  maintenanceMargin: number;
+  marginRatio: number;
+  adlQuantile?: number; // Auto-deleveraging quantile (1-5)
+}
+
+export interface FundingRate {
+  symbol: string;
+  fundingRate: number;
+  fundingTime: number;
+  nextFundingTime: number;
+  estimatedRate?: number;
+}
+
+export interface Collateral {
+  asset: string;
+  total: number;
+  available: number;
+  locked: number;
+  marginBalance: number;
+  unrealizedPnl: number;
+}
+
+export interface LeverageInfo {
+  symbol: string;
+  maxLeverage: number;
+  currentLeverage: number;
+  brackets: {
+    notional: number;
+    maxLeverage: number;
+    maintenanceMarginRate: number;
+  }[];
+}
+
+export interface LiquidationRisk {
+  symbol: string;
+  currentPrice: number;
+  liquidationPrice: number;
+  distancePercent: number;
+  buffer: number;
+  isHighRisk: boolean;
+  estimatedTimeToLiquidation?: number; // In seconds, if current volatility continues
+}
+
+export interface FuturesOrderRequest extends OrderRequest {
+  reduceOnly?: boolean;
+  positionSide?: 'LONG' | 'SHORT' | 'BOTH';
+}
